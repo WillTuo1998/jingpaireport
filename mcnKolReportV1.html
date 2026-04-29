@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>本地数据卡片生成器 | Excel / JSON 转卡片视图</title>
+    <!-- 使用 SheetJS 库解析 Excel 文件 (完全前端，无后端依赖) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(145deg, #f4f7fc 0%, #e9eef4 100%);
+            min-height: 100vh;
+            padding: 2rem 1.5rem;
+        }
+
+        /* 主容器 */
+        .app-container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1f2b3c, #2c3e50);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+        .header p {
+            color: #4a627a;
+            margin-top: 0.5rem;
+            font-size: 1rem;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: inline-block;
+            padding-bottom: 0.3rem;
+        }
+
+        /* 双卡片输入区 (现代卡片样式) */
+        .input-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.8rem;
+            margin-bottom: 2rem;
+        }
+        .input-card {
+            flex: 1;
+            min-width: 280px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(2px);
+            border-radius: 28px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            padding: 1.5rem 1.8rem;
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        .input-card:hover {
+            box-shadow: 0 20px 30px -12px rgba(0, 0, 0, 0.12);
+            background: white;
+        }
+        .input-card h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #1e2f3e;
+            border-left: 4px solid #3b82f6;
+            padding-left: 0.75rem;
+        }
+        .file-area {
+            margin: 1rem 0;
+        }
+        .file-label {
+            display: inline-block;
+            background: #eef2ff;
+            padding: 0.5rem 1rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #1e40af;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid #cbd5e1;
+        }
+        .file-label:hover {
+            background: #e0e7ff;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .file-name {
+            font-size: 0.8rem;
+            margin-top: 0.6rem;
+            color: #2c3e50;
+            background: #f1f5f9;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            display: inline-block;
+            word-break: break-all;
+        }
+        .clear-file-btn {
+            margin-left: 0.75rem;
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 0.75rem;
+            text-decoration: underline;
+        }
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            padding: 1rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            border-radius: 20px;
+            border: 1px solid #cbd5e1;
+            background: #fefefe;
+            resize: vertical;
+            margin: 0.8rem 0;
+            transition: 0.2s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+        }
+        .json-buttons {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        .btn-secondary {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            color: #1e293b;
+        }
+        .btn-secondary:hover {
+            background: #e2e8f0;
+            transform: scale(0.97);
+        }
+
+        /* 主按钮 */
+        .action-btn {
+            display: flex;
+            justify-content: center;
+            margin: 0.5rem 0 2rem 0;
+        }
+        .btn-primary {
+            background: linear-gradient(100deg, #2c3e50, #1e2f3c);
+            border: none;
+            padding: 0.9rem 2.8rem;
+            border-radius: 60px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(100deg, #1f2e3e, #16232e);
+            box-shadow: 0 20px 25px -8px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary:active {
+            transform: translateY(1px);
+        }
+
+        /* 统计信息 & 错误区域 */
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 1.2rem;
+            background: #ffffffcc;
+            backdrop-filter: blur(4px);
+            padding: 0.6rem 1.2rem;
+            border-radius: 60px;
+        }
+        .stats {
+            font-weight: 500;
+            color: #0f3b5c;
+            background: #eef2ff;
+            padding: 0.2rem 1rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+        }
+        .error-msg {
+            color: #b91c1c;
+            background: #fee2e2;
+            padding: 0.3rem 1rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            max-width: 70%;
+        }
+
+        /* 卡片容器 — 网格布局 */
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
+            padding: 0.3rem 0.2rem 1rem 0.2rem;
+            margin-top: 0.6rem;
+        }
+        /* 自定义滚动条 */
+        .cards-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .cards-container::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .cards-container::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 10px;
+        }
+
+        /* 卡片样式 */
+        .data-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            transition: all 0.25s ease;
+            overflow: hidden;
+            border: 1px solid rgba(203, 213, 225, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+        .data-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 30px -12px rgba(0, 0, 0, 0.2);
+            border-color: #b9d0f0;
+        }
+        .card-header {
+            background: #f8fafc;
+            padding: 0.9rem 1.2rem;
+            border-bottom: 2px solid #eef2ff;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-index {
+            background: #e6edf6;
+            padding: 0.2rem 0.7rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .card-body {
+            padding: 1rem 1.2rem 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        .data-field {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            font-size: 0.85rem;
+            border-bottom: 1px dashed #ecf3fa;
+            padding-bottom: 0.4rem;
+        }
+        .field-key {
+            font-weight: 700;
+            min-width: 100px;
+            color: #2c5f8a;
+            background: #f1f5f9;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            margin-right: 0.8rem;
+            word-break: keep-all;
+            font-size: 0.8rem;
+        }
+        .field-value {
+            color: #1e2f3e;
+            word-break: break-word;
+            flex: 1;
+            font-weight: 500;
+            background: #ffffff;
+            padding: 0.2rem 0.3rem;
+            border-radius: 12px;
+        }
+        .empty-value {
+            color: #9ca3af;
+            font-style: italic;
+        }
+        .no-data-placeholder {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+            background: #f9f9fc;
+            border-radius: 2rem;
+            margin-top: 1rem;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.75rem;
+            color: #5a6e85;
+            border-top: 1px solid #cbd5e180;
+            padding-top: 1.5rem;
+        }
+        @media (max-width: 640px) {
+            body { padding: 1rem; }
+            .input-card { padding: 1rem; }
+            .cards-container { grid-template-columns: 1fr; }
+            .field-key { min-width: 75px; }
+        }
+        .loading-txt {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="header">
+        <h1>📇 数据卡片工坊</h1>
+        <p>上传 Excel (.xlsx, .xls) 或 输入 JSON 数组 → 一键生成精美数据卡片</p>
+    </div>
+
+    <!-- 双输入模块 -->
+    <div class="input-panel">
+        <!-- Excel 上传区 -->
+        <div class="input-card">
+            <h3>📂 1. 上传 Excel 文件</h3>
+            <div class="file-area">
+                <label class="file-label" for="excelInput">📎 选择 Excel 文件</label>
+                <input type="file" id="excelInput" accept=".xlsx, .xls, .xlsm, .csv">
+                <div style="margin-top: 10px;">
+                    <span class="file-name" id="fileNameDisplay">未选择任何文件</span>
+                    <button type="button" class="clear-file-btn" id="clearFileBtn">🗑️ 清除文件</button>
+                </div>
+                <div style="font-size: 0.7rem; color: #4b6b8f; margin-top: 8px;">✅ 优先使用 Excel 文件（若已选文件，将忽略下方 JSON 区域）</div>
+            </div>
+        </div>
+
+        <!-- JSON 输入区 -->
+        <div class="input-card">
+            <h3>📝 2. 或输入 JSON 数据</h3>
+            <textarea id="jsonInput" placeholder='示例:  \n[\n  { "姓名": "张三", "部门": "技术部", "积分": 98 },\n  { "姓名": "李四", "部门": "市场部", "积分": 86 }\n]'></textarea>
+            <div class="json-buttons">
+                <button type="button" class="btn-secondary" id="sampleJsonBtn">✨ 填充示例 JSON</button>
+                <button type="button" class="btn-secondary" id="clearJsonBtn">🧹 清空 JSON</button>
+            </div>
+            <div style="font-size: 0.7rem; color:#4b6b8f; margin-top: 6px;">📌 仅当未选择 Excel 文件时使用 JSON</div>
+        </div>
+    </div>
+
+    <!-- 主按钮：展示卡片 -->
+    <div class="action-btn">
+        <button class="btn-primary" id="showCardsBtn">✨ 展示数据卡片 ✨</button>
+    </div>
+
+    <!-- 信息栏：状态+统计+错误 -->
+    <div class="info-bar">
+        <div class="stats" id="statsInfo">📊 暂无数据</div>
+        <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- 卡片展示容器 -->
+    <div id="cardsContainer" class="cards-container">
+        <div class="no-data-placeholder">💡 点击上方按钮，上传 Excel 或输入 JSON 后展示卡片</div>
+    </div>
+    <footer>
+        ⚡ 完全本地运行 | 数据仅存于浏览器 | 支持 Excel 多行 + 表头自动识别 | 卡片式浏览每一行
+    </footer>
+</div>
+
+<script>
+    (function() {
+        // DOM 元素
+        const excelFileInput = document.getElementById('excelInput');
+        const fileNameSpan = document.getElementById('fileNameDisplay');
+        const clearFileBtn = document.getElementById('clearFileBtn');
+        const jsonTextarea = document.getElementById('jsonInput');
+        const sampleJsonBtn = document.getElementById('sampleJsonBtn');
+        const clearJsonBtn = document.getElementById('clearJsonBtn');
+        const showBtn = document.getElementById('showCardsBtn');
+        const cardsContainer = document.getElementById('cardsContainer');
+        const statsInfo = document.getElementById('statsInfo');
+        const errorMsgDiv = document.getElementById('errorMsg');
+
+        // 辅助函数: 显示错误(自动3秒后恢复普通提示? 但不清除统计，只覆盖)
+        function setError(text) {
+            errorMsgDiv.innerText = text;
+            if (text) {
+                setTimeout(() => {
+                    if (errorMsgDiv.innerText === text) {
+                        errorMsgDiv.innerText = '';
+                    }
+                }, 4000);
+            } else {
+                errorMsgDiv.innerText = '';
+            }
+        }
+
+        // 清除错误
+        function clearError() {
+            errorMsgDiv.innerText = '';
+        }
+
+        // 更新统计和卡片容器
+        function renderCards(dataArray) {
+            // 清空容器
+            cardsContainer.innerHTML = '';
+            if (!dataArray || !Array.isArray(dataArray) || dataArray.length === 0) {
+                cardsContainer.innerHTML = '<div class="no-data-placeholder">📭 没有有效数据行，请检查数据源或格式</div>';
+                statsInfo.innerHTML = `📊 0 行数据`;
+                return;
+            }
+
+            // 过滤掉完全空对象或无效行 (保留至少有一个非空属性)
+            const validRows = dataArray.filter(row => {
+                if (row === null || row === undefined) return false;
+                if (typeof row !== 'object') return false;
+                // 至少有一个可展示的属性值（非undefined）
+                return Object.values(row).some(v => v !== undefined && v !== null && v !== '');
+            });
+
+            if (validRows.length === 0) {
+                cardsContainer.innerHTML = '<div class="no-data-placeholder">⚠️ 过滤后无有效数据行（所有行均为空）</div>';
+                statsInfo.innerHTML = `📊 0 行数据 (原始 ${dataArray.length} 行, 无有效内容)`;
+                return;
+            }
+
+            // 更新统计信息
+            statsInfo.innerHTML = `📋 共 ${validRows.length} 条记录 | 卡片视图`;
+
+            // 生成卡片
+            validRows.forEach((row, idx) => {
+                const card = document.createElement('div');
+                card.className = 'data-card';
+
+                // 获取所有字段 (键)
+                const keys = Object.keys(row);
+                if (keys.length === 0) {
+                    // 特殊情况：空对象不要展示
+                    return;
+                }
+
+                // 卡片头部 (显示行号)
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'card-header';
+                const titleSpan = document.createElement('span');
+                titleSpan.innerText = `📌 记录 #${idx + 1}`;
+                const indexBadge = document.createElement('span');
+                indexBadge.className = 'card-index';
+                indexBadge.innerText = `${keys.length} 个字段`;
+                headerDiv.appendChild(titleSpan);
+                headerDiv.appendChild(indexBadge);
+
+                // 卡片主体: 动态字段列表
+                const bodyDiv = document.createElement('div');
+                bodyDiv.className = 'card-body';
+
+                for (let key of keys) {
+                    let value = row[key];
+                    // 格式化显示值 (处理 null/undefined/对象)
+                    let displayValue = '';
+                    if (value === undefined || value === null) {
+                        displayValue = '<span class="empty-value">— 空值 —</span>';
+                    } else if (typeof value === 'object') {
+                        try {
+                            displayValue = JSON.stringify(value);
+                            if (displayValue.length > 60) displayValue = displayValue.substring(0, 57) + '...';
+                        } catch(e) { displayValue = '[复杂对象]'; }
+                    } else {
+                        displayValue = String(value);
+                        // 截断过长的文本
+                        if (displayValue.length > 120) displayValue = displayValue.substring(0, 117) + '...';
+                    }
+
+                    const fieldDiv = document.createElement('div');
+                    fieldDiv.className = 'data-field';
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'field-key';
+                    keySpan.innerText = key;
+                    const valueSpan = document.createElement('span');
+                    valueSpan.className = 'field-value';
+                    valueSpan.innerHTML = displayValue; // 使用 innerHTML 来支持空值样式
+                    fieldDiv.appendChild(keySpan);
+                    fieldDiv.appendChild(valueSpan);
+                    bodyDiv.appendChild(fieldDiv);
+                }
+
+                card.appendChild(headerDiv);
+                card.appendChild(bodyDiv);
+                cardsContainer.appendChild(card);
+            });
+        }
+
+        // 解析 Excel 文件（异步）
+        async function parseExcelAndDisplay(file) {
+            return new Promise((resolve, reject) => {
+                if (!file) {
+                    reject(new Error('未选择文件'));
+                    return;
+                }
+                const fileName = file.name;
+                if (!fileName.match(/\.(xlsx|xls|xlsm|csv)$/i)) {
+                    reject(new Error('文件格式不支持，请上传 .xlsx, .xls, .xlsm 或 .csv 文件'));
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: false, defval: "" });
+                        if (!workbook.SheetNames.length) {
+                            reject(new Error('Excel 文件中没有工作表'));
+                            return;
+                        }
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        // 转换为 JSON (默认第一行为表头)
+                        let jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+                        if (!jsonData || jsonData.length === 0) {
+                            reject(new Error('Excel 表格无有效数据行（可能缺少表头或内容为空）'));
+                            return;
+                        }
+                        // 清理：将 undefined 转为空字符串，保证展示
+                        const cleanedData = jsonData.map(row => {
+                            const newRow = {};
+                            for (let key in row) {
+                                if (row[key] === undefined || row[key] === null) newRow[key] = '';
+                                else newRow[key] = row[key];
+                            }
+                            return newRow;
+                        });
+                        resolve(cleanedData);
+                    } catch (err) {
+                        reject(new Error('解析 Excel 失败: ' + err.message));
+                    }
+                };
+                reader.onerror = () => reject(new Error('读取文件失败，请重试'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // 解析 JSON 文本
+        function parseJSONAndDisplay(jsonString) {
+            const trimmed = jsonString.trim();
+            if (!trimmed) {
+                throw new Error('JSON 内容为空，请填写有效 JSON 数组');
+            }
+            let parsed;
+            try {
+                parsed = JSON.parse(trimmed);
+            } catch (e) {
+                throw new Error('JSON 解析错误: ' + e.message + '，请检查格式是否为合法 JSON');
+            }
+            if (!Array.isArray(parsed)) {
+                throw new Error('JSON 格式错误：必须是一个数组 (例如 [{...}, {...}])');
+            }
+            if (parsed.length === 0) {
+                throw new Error('JSON 数组为空，没有数据可展示');
+            }
+            // 验证每个元素是否为对象，如果不是对象则转换提示但是可以尽可能兼容（将非对象转为包装对象）
+            const validRows = [];
+            for (let i = 0; i < parsed.length; i++) {
+                let item = parsed[i];
+                if (item === null || item === undefined) {
+                    // 跳过完全空值，也可以包装
+                    continue;
+                }
+                if (typeof item !== 'object') {
+                    // 如果是字符串、数字等基本类型，包装成对象 { value: 实际值 }，便于显示
+                    item = { "[原始值]": item };
+                }
+                // 过滤掉完全空对象
+                if (Object.keys(item).length === 0) continue;
+                validRows.push(item);
+            }
+            if (validRows.length === 0) {
+                throw new Error('处理后无有效数据对象（全是空或无效值）');
+            }
+            return validRows;
+        }
+
+        // 主要展示逻辑: 根据文件选择或JSON内容
+        async function onShowCards() {
+            // 清除旧错误临时
+            clearError();
+            // 显示加载指示器（按钮禁用轻体验）
+            const originalBtnText = showBtn.innerHTML;
+            showBtn.disabled = true;
+            showBtn.innerHTML = '⏳ 加载中...';
+            
+            try {
+                // 1. 优先判断是否有选择 Excel 文件
+                const file = excelFileInput.files[0];
+                let displayData = null;
+                let dataSource = null;
+
+                if (file) {
+                    // 使用 Excel 数据源
+                    try {
+                        displayData = await parseExcelAndDisplay(file);
+                        dataSource = 'excel';
+                    } catch (err) {
+                        throw new Error(`📁 Excel 读取失败: ${err.message}`);
+                    }
+                } else {
+                    // 没有文件，尝试从 JSON 文本框获取数据
+                    const jsonStr = jsonTextarea.value;
+                    if (!jsonStr.trim()) {
+                        throw new Error('请先上传 Excel 文件 或 在 JSON 区域输入有效的数组数据');
+                    }
+                    try {
+                        displayData = parseJSONAndDisplay(jsonStr);
+                        dataSource = 'json';
+                    } catch (err) {
+                        throw new Error(`💬 JSON 解析失败: ${err.message}`);
+                    }
+                }
+
+                // 最终展示卡片
+                if (displayData && displayData.length > 0) {
+                    renderCards(displayData);
+                    setError(''); // 清空一般错误
+                    // 额外在statsInfo自动更新
+                    if(dataSource === 'excel') {
+                        statsInfo.innerHTML = `📊 已展示 Excel 数据 | ${displayData.length} 条记录`;
+                    } else {
+                        statsInfo.innerHTML = `📊 已展示 JSON 数据 | ${displayData.length} 条记录`;
+                    }
+                } else {
+                    // 空数据情况
+                    renderCards([]);
+                    statsInfo.innerHTML = `⚠️ 无有效数据行`;
+                    setError('数据源解析后没有有效行，请检查内容');
+                }
+            } catch (error) {
+                // 展示错误，清空卡片容器并显示友好错误占位
+                cardsContainer.innerHTML = `<div class="no-data-placeholder" style="border-left: 4px solid #ef4444;">❌ 错误：${escapeHtml(error.message)}</div>`;
+                statsInfo.innerHTML = `📊 数据加载失败`;
+                setError(error.message);
+            } finally {
+                showBtn.disabled = false;
+                showBtn.innerHTML = originalBtnText;
+            }
+        }
+
+        // 简单的防 XSS 辅助（用于错误显示）
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+                return c;
+            });
+        }
+
+        // 清除文件选择
+        function clearFileSelection() {
+            excelFileInput.value = '';
+            fileNameSpan.innerText = '未选择任何文件';
+            setError('');
+            // 不清除卡片，但用户点击展示时会根据新状态运行
+        }
+
+        // 监听文件选择变化更新显示名称
+        excelFileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                fileNameSpan.innerText = this.files[0].name;
+                clearError(); // 若切换文件清除错误
+            } else {
+                fileNameSpan.innerText = '未选择任何文件';
+            }
+        });
+
+        // 填充示例 JSON (丰富展示)
+        function fillSampleJSON() {
+            const sample = [
+                { "🌟 姓名": "林青璇", "部门": "产品创新部", "职位": "产品总监", "绩效评分": "S", "项目": "AI 助手平台" },
+                { "🌟 姓名": "周明远", "部门": "研发中心", "职位": "技术架构师", "绩效评分": "A+", "技术栈": "React, Go, K8s" },
+                { "🌟 姓名": "吴若曦", "部门": "用户体验部", "职位": "UI 设计组长", "绩效评分": "A", "作品数": 24 },
+                { "🌟 姓名": "赵一航", "部门": "市场推广", "职位": "数字营销", "绩效评分": "B+", "渠道": "海外增长" }
+            ];
+            jsonTextarea.value = JSON.stringify(sample, null, 2);
+            clearError();
+        }
+
+        function clearJson() {
+            jsonTextarea.value = '';
+            setError('');
+        }
+
+        // 绑定事件
+        clearFileBtn.addEventListener('click', clearFileSelection);
+        sampleJsonBtn.addEventListener('click', fillSampleJSON);
+        clearJsonBtn.addEventListener('click', clearJson);
+        showBtn.addEventListener('click', onShowCards);
+
+        // 页面初始化友好示例JSON（便于首次体验）
+        fillSampleJSON();
+        // 其他: 如果没有文件时首次点击可以直接展示示例JSON，挺好
+        // 额外: 当清空文件后可以自由改用json
+    })();
+</script>
+</body>
+</html>
